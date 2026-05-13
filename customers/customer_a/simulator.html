@@ -478,7 +478,6 @@ async function showResults(data) {
   await new Promise(r => setTimeout(r, 50));
 
   const fc = data.first_calculations;
-  const ce = data.cycle_end;
   document.getElementById('summaryGrid').innerHTML = [
     { label: 'Heat transfer area', value: fmt(fc.total_heat_area, 4), unit: 'm²' },
     { label: 'Sublimation area', value: fmt(fc.total_subl_area, 4), unit: 'm²' },
