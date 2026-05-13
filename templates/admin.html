@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Lyoptimus — Admin Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --navy: #416a82; --accent: #6a8a9d; --ice: #e2e8ec; --text: #2a4a5e; --muted: #5a6a7e; --white: #fff; --border: rgba(65,106,130,0.15); }
+  body { font-family: 'DM Sans', sans-serif; background: #f4f7fb; color: var(--text); }
+  nav { background: var(--white); border-bottom: 0.5px solid var(--border); padding: 0 2rem; height: 64px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+  .logo-wrap img { height: 36px; display: block; }
+  .nav-right { display: flex; align-items: center; gap: 1rem; }
+  .badge { background: var(--navy); color: #fff; font-size: 11px; padding: 3px 10px; border-radius: 3px; letter-spacing: 0.06em; }
+  .logout { font-size: 13px; color: var(--muted); text-decoration: none; }
+  .logout:hover { color: var(--navy); }
+  .main { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+  h1 { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 500; color: var(--navy); margin-bottom: 0.5rem; }
+  .subtitle { font-size: 14px; color: var(--muted); margin-bottom: 2rem; }
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
+  .stat-card { background: var(--white); border: 0.5px solid var(--border); border-radius: 8px; padding: 1.25rem; }
+  .stat-card .num { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 600; color: var(--navy); }
+  .stat-card .lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .filter-bar { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .filter-bar select, .filter-bar input { padding: 8px 12px; border: 0.5px solid var(--border); border-radius: 6px; font-size: 13px; font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--white); }
+  .table-wrap { background: var(--white); border: 0.5px solid var(--border); border-radius: 10px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead { background: var(--navy); }
+  thead th { color: rgba(255,255,255,0.85); font-weight: 500; padding: 10px 14px; text-align: left; white-space: nowrap; }
+  tbody tr { border-bottom: 0.5px solid var(--border); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--ice); }
+  tbody td { padding: 9px 14px; color: var(--text); }
+  .customer-tag { display: inline-block; background: var(--ice); color: var(--navy); font-size: 11px; padding: 2px 8px; border-radius: 3px; font-weight: 500; }
+  .empty { text-align: center; padding: 3rem; color: var(--muted); font-size: 14px; }
+  footer { background: var(--navy); padding: 1rem 2rem; text-align: center; margin-top: 3rem; }
+  footer p { font-size: 12px; color: rgba(255,255,255,0.4); }
+  @media (max-width: 768px) { .stats-row { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<nav>
+  <a href="/" class="logo-wrap"><img src="/static/logo.jpg" alt="Lyoptimus"/></a>
+  <div class="nav-right">
+    <span class="badge">ADMIN</span>
+    <a href="/api/logout" class="logout">Sign out</a>
+  </div>
+</nav>
+<div class="main">
+  <h1>Admin Dashboard</h1>
+  <p class="subtitle" id="lastUpdate">Loading simulation history...</p>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="num" id="totalSims">—</div><div class="lbl">Total simulations</div></div>
+    <div class="stat-card"><div class="num" id="totalCustomers">—</div><div class="lbl">Active customers</div></div>
+    <div class="stat-card"><div class="num" id="totalUsers">—</div><div class="lbl">Active users</div></div>
+    <div class="stat-card"><div class="num" id="todaySims">—</div><div class="lbl">Simulations today</div></div>
+  </div>
+
+  <div class="filter-bar">
+    <select id="filterCustomer" onchange="applyFilters()">
+      <option value="">All customers</option>
+    </select>
+    <select id="filterUser" onchange="applyFilters()">
+      <option value="">All users</option>
+    </select>
+    <input type="date" id="filterDate" onchange="applyFilters()"/>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date & Time</th>
+          <th>Customer</th>
+          <th>User</th>
+          <th>Shelf temp [°C]</th>
+          <th>Chamber P [mbar]</th>
+          <th>Drying time [h]</th>
+          <th>Final Tb [°C]</th>
+          <th>Kv [W/m²]</th>
+        </tr>
+      </thead>
+      <tbody id="simTable"></tbody>
+    </table>
+  </div>
+</div>
+<footer><p>&copy; 2025 Lyoptimus Thermodynamics S.L.</p></footer>
+
+<script>
+let allSims = [];
+
+async function loadData() {
+  try {
+    const resp = await fetch('/api/admin/simulations');
+    if (resp.status === 401) { window.location.href = '/login'; return; }
+    const data = await resp.json();
+    allSims = data.simulations || [];
+    renderStats();
+    populateFilters();
+    renderTable(allSims);
+    document.getElementById('lastUpdate').textContent = `Last updated: ${new Date().toLocaleString()}`;
+  } catch(e) {
+    document.getElementById('lastUpdate').textContent = 'Error loading data.';
+  }
+}
+
+function renderStats() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('totalSims').textContent = allSims.length;
+  document.getElementById('totalCustomers').textContent = new Set(allSims.map(s => s.customer)).size;
+  document.getElementById('totalUsers').textContent = new Set(allSims.map(s => s.username)).size;
+  document.getElementById('todaySims').textContent = allSims.filter(s => s.timestamp.startsWith(today)).length;
+}
+
+function populateFilters() {
+  const customers = [...new Set(allSims.map(s => s.customer))];
+  const users = [...new Set(allSims.map(s => s.username))];
+  const cSel = document.getElementById('filterCustomer');
+  const uSel = document.getElementById('filterUser');
+  customers.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; cSel.appendChild(o); });
+  users.forEach(u => { const o = document.createElement('option'); o.value = u; o.textContent = u; uSel.appendChild(o); });
+}
+
+function applyFilters() {
+  const customer = document.getElementById('filterCustomer').value;
+  const user = document.getElementById('filterUser').value;
+  const date = document.getElementById('filterDate').value;
+  let filtered = allSims;
+  if (customer) filtered = filtered.filter(s => s.customer === customer);
+  if (user) filtered = filtered.filter(s => s.username === user);
+  if (date) filtered = filtered.filter(s => s.timestamp.startsWith(date));
+  renderTable(filtered);
+}
+
+function renderTable(sims) {
+  const tbody = document.getElementById('simTable');
+  if (sims.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">No simulations found.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = [...sims].reverse().map(s => `
+    <tr>
+      <td>${s.timestamp}</td>
+      <td><span class="customer-tag">${s.customer}</span></td>
+      <td>${s.username}</td>
+      <td>${s.shelf_temp}</td>
+      <td>${s.chamber_pressure}</td>
+      <td>${parseFloat(s.drying_time_h).toFixed(2)}</td>
+      <td>${parseFloat(s.final_tb).toFixed(2)}</td>
+      <td>${parseFloat(s.kv_coeff).toFixed(3)}</td>
+    </tr>`).join('');
+}
+
+loadData();
+setInterval(loadData, 30000); // auto-refresh every 30s
+</script>
+</body>
+</html>
