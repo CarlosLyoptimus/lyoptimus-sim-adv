@@ -411,9 +411,9 @@ function getVal(id) { return parseFloat(document.getElementById(id).value); }
 
 async function runCalculation() {
   const btn = document.getElementById('runBtn');
+  try {
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner"></div> Running...';
-  try {
 
   const dosingMode = parseInt(document.querySelector('input[name="dosing_mode"]:checked').value);
   const payload = {
