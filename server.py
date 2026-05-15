@@ -401,6 +401,9 @@ def debug():
         'customers_dir': CUSTOMERS_DIR,
         'customers_exists': os.path.exists(CUSTOMERS_DIR),
         'customers_contents': customers_contents,
+        'templates_dir': TEMPLATES,
+        'templates_exists': os.path.exists(TEMPLATES),
+        'templates_contents': os.listdir(TEMPLATES) if os.path.exists(TEMPLATES) else [],
         'cwd': os.getcwd(),
         'listdir_cwd': os.listdir('.')
     })
